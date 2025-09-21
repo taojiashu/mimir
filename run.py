@@ -118,6 +118,15 @@ def get_mia_scores(
             "avg_length": avg_length,
         }
 
+    # Info-RMIA specific config passthrough
+    info_rmia_config = config.info_rmia_config
+    info_rmia_dict = None
+    if info_rmia_config:
+        info_rmia_dict = {
+            "aggregate": getattr(info_rmia_config, "aggregate", "mean"),
+            "k": getattr(info_rmia_config, "k", 0.2),
+        }
+
     # For each batch of data
     # TODO: Batch-size isn't really "batching" data - change later
     for batch in tqdm(
@@ -183,6 +192,20 @@ def get_mia_scores(
                             loss=loss,
                             all_probs=s_all_probs,
                             recall_dict=recall_dict,
+                        )
+                        sample_information[attack].append(score)
+
+                    elif attack in [AllAttacks.TOKEN_INFO_RMIA, AllAttacks.SEQ_INFO_RMIA]:
+                        score = attacker.attack(
+                            substr,
+                            probs=s_tk_probs,
+                            detokenized_sample=(
+                                detokenized_sample[i] if config.pretokenized else None
+                            ),
+                            loss=loss,
+                            all_probs=s_all_probs,
+                            info_rmia_dict=info_rmia_dict,
+                            ref_models=(list(ref_models.values()) if ref_models else None),
                         )
                         sample_information[attack].append(score)
 

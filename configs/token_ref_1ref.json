@@ -22,7 +22,7 @@
     "env_config": {
         "results": "results",
         "device": "cuda:0",
-        "device_aux": "cuda:0"
+        "device_aux": "cuda:1"
     },
     "dump_cache": false,
     "load_from_cache": true,

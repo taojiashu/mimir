@@ -6,7 +6,7 @@ import torch
 from torch.nn.functional import kl_div
 
 from .all_attacks import Attack
-from mimir.models import ReferenceModel
+from mimir.models import ReferenceModel, Model
 
 
 @dataclass
@@ -36,8 +36,18 @@ class InfoRMIAToken(Attack):
         is_blackbox: bool = True,
     ):
         super().__init__(config, target_model, ref_model, is_blackbox)
-        self.params = InfoRMIAParams(
-            aggregate=getattr(config, "info_rmia_aggregate", "mean")
+        # Default params; may be overridden per-call via info_rmia_dict
+        aggregate_default = (
+            getattr(config.info_rmia_config, "aggregate", "mean")
+            if getattr(config, "info_rmia_config", None) is not None
+            else "mean"
+        )
+        self.params = InfoRMIAParams(aggregate=aggregate_default)
+        # Optional k for mink
+        self.k_default = (
+            getattr(config.info_rmia_config, "k", 0.2)
+            if getattr(config, "info_rmia_config", None) is not None
+            else 0.2
         )
 
         # Store multiple reference models
@@ -51,23 +61,33 @@ class InfoRMIAToken(Attack):
             for model_name in config.ref_config.models:
                 self.ref_models.append(ReferenceModel(config, model_name))
         
-        if not self.ref_models:
-            raise ValueError("InfoRMIAToken requires at least one reference model")
+        # If no reference models here, they can be provided per-call via kwargs
+        pass
 
-    def _aggregate(self, diffs: List[float]) -> float:
+    def _aggregate(self, diffs: List[float], info_rmia_dict: Optional[dict] = None) -> float:
         if len(diffs) == 0:
             return float("nan")
-        if self.params.aggregate == "sum":
+        # Resolve aggregation settings (per-call override wins)
+        aggregate = (
+            (info_rmia_dict or {}).get("aggregate", None)
+            or self.params.aggregate
+        )
+        k = (info_rmia_dict or {}).get("k", self.k_default)
+
+        if aggregate == "sum":
             return float(sum(diffs))
-        elif self.params.aggregate == "mink":
-            k = self.params.k if hasattr(self.params, 'k') else 0.2
+        elif aggregate == "mink":
             return float(np.mean(sorted(diffs)[: int(len(diffs) * k)]))
-        elif self.params.aggregate == "mean":
+        elif aggregate == "mean":
             return float(sum(diffs) / len(diffs))
         else:
-            raise ValueError(f"Unknown aggregation method: {self.params.aggregate}")
+            raise ValueError(f"Unknown aggregation method: {aggregate}")
 
     def _attack(self, document: str, probs: List[float], tokens=None, **kwargs):
+        info_rmia_dict: Optional[dict] = kwargs.get("info_rmia_dict", None)
+        # Allow passing ref_models per call (e.g., from run.py) to share preloaded refs
+        runtime_ref_models: Optional[List[ReferenceModel]] = kwargs.get("ref_models", None)
+
         # Get target model outputs (per-token log-probs and optionally full distributions)
         target_log_px, target_log_all = self.target_model.get_probabilities(
             document, return_all_probs=True
@@ -105,7 +125,9 @@ class InfoRMIAToken(Attack):
         # Collect ref outputs
         ref_px_tensors = []
         ref_all_tensors = []
-        for ref_model in self.ref_models:
+        # Use runtime-provided refs if available; else fall back to self.ref_models
+        refs_to_use = runtime_ref_models if runtime_ref_models else self.ref_models
+        for ref_model in refs_to_use:
             try:
                 ref_px, ref_all = ref_model.get_probabilities(document, return_all_probs=True)
 
@@ -141,6 +163,7 @@ class InfoRMIAToken(Attack):
 
         # Compute KL term only if full distributions exist for target and ALL refs and shapes match
         kl_term = None
+        shapes_match = False
         if (
             isinstance(target_log_all_t, torch.Tensor)
             and all(isinstance(r, torch.Tensor) for r in ref_all_tensors)
@@ -170,7 +193,7 @@ class InfoRMIAToken(Attack):
 
         # convert to python list of floats for _aggregate
         scores_list = per_token_scores.detach().cpu().numpy().tolist()
-        return -self._aggregate(scores_list)
+        return float(-self._aggregate(scores_list, info_rmia_dict=info_rmia_dict))
 
 
 class InfoRMIASeq(InfoRMIAToken):
@@ -184,13 +207,16 @@ class InfoRMIASeq(InfoRMIAToken):
         super().__init__(config, target_model, ref_model, is_blackbox)
 
     def _attack(self, document: str, probs: List[float], tokens=None, **kwargs):
+        info_rmia_dict: Optional[dict] = kwargs.get("info_rmia_dict", None)
+        runtime_ref_models: Optional[List[ReferenceModel]] = kwargs.get("ref_models", None)
         target_logp = np.mean(probs)
         
         # Get log probs from all reference models and average them
         ref_logps = []
-        for ref_model in self.ref_models:
+        refs_to_use = runtime_ref_models if runtime_ref_models else self.ref_models
+        for ref_model in refs_to_use:
             ref_logps.append(np.mean(ref_model.get_probabilities(document)))
         
-        ref_logp = np.mean(ref_logps) if ref_logps else float("nan")
+        ref_logp = float(np.mean(ref_logps)) if ref_logps else float("nan")
         
-        return -(target_logp - ref_logp)
+        return float(-(target_logp - ref_logp))

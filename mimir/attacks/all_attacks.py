@@ -3,6 +3,7 @@
 """
 
 from enum import Enum
+from typing import Optional
 from mimir.models import Model
 
 
@@ -24,7 +25,7 @@ class AllAttacks(str, Enum):
 
 # Base attack class
 class Attack:
-    def __init__(self, config, target_model: Model, ref_model: Model = None, is_blackbox: bool = True):
+    def __init__(self, config, target_model: Model, ref_model: Optional[Model] = None, is_blackbox: bool = True):
         self.config = config
         self.target_model = target_model
         self.ref_model = ref_model

@@ -218,6 +218,8 @@ class ExperimentConfig(Serializable):
     """Environment config"""
     openai_config: Optional[OpenAIConfig] = None
     """OpenAI config"""
+    info_rmia_config: Optional[InfoRMIAConfig] = None
+    """Info-RMIA attack config"""
 
     def __post_init__(self):
         if self.dump_cache and (self.load_from_cache or self.load_from_hf):
