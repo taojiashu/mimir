@@ -1,6 +1,6 @@
 {
     "experiment_name": "cache_data",
-    "base_model": "EleutherAI/pythia-160m",
+    "base_model": "EleutherAI/pythia-160m-deduped",
     "dataset_member": "the_pile",
     "dataset_nonmember": "the_pile",
     "min_words": 100,
@@ -10,14 +10,6 @@
     "specific_source": "pile_cc",
     "n_samples": 1000,
     "blackbox_attacks": [],
-    "neighborhood_config": {
-        "model": "bert",
-        "n_perturbation_list": [
-            20
-        ],
-        "pct_words_masked": 0.3,
-        "span_length": 2
-    },
     "env_config": {
         "results": "results",
         "cache_dir": "cache_dir"

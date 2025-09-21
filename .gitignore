@@ -65,3 +65,6 @@ DEBUG/*
 
 # Ignore resources for edited members
 edit_distance_members
+venv/*
+logs*/
+*.log

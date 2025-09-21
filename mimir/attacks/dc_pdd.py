@@ -66,7 +66,8 @@ class DC_PDDAttack(Attack):
     def _collect_frequency_data(self, fil_num: int = 15):
         for i in tqdm(range(fil_num), desc="Downloading and processing dataset"):
             # Download the dataset split
-            url = f"https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.{"{:05}".format(i)}-of-01024.json.gz"
+            # Use zero-padded index in the filename, e.g., 00000, 00001, ...
+            url = f"https://huggingface.co/datasets/allenai/c4/resolve/main/en/c4-train.{i:05d}-of-01024.json.gz"
             # Download the file
             response = requests.get(url)
             response.raise_for_status()  # Check for download errors

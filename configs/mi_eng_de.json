@@ -1,0 +1,31 @@
+{
+  "experiment_name": "mimir_info_rmia_demo",
+  "base_model": "EleutherAI/pythia-410m",
+  "dataset_member": "english",
+  "dataset_nonmember": "german",
+  "dataset_key": "text",
+  "n_samples": 1000,
+  "blackbox_attacks": [
+        "loss",
+        "ref",
+        "zlib",
+        "min_k",
+        "min_k++",
+        "recall",
+        "info_rmia_token"
+    ],
+  "ref_config": {
+    "models": [
+      "EleutherAI/pythia-160m"
+    ]
+  },
+  "recall_config":{
+        "num_shots": 1
+    },
+  "env_config": {
+    "results": "results",
+    "device": "cuda:0",
+    "device_aux": "cuda:1"
+  },
+  "load_from_hf": false
+}

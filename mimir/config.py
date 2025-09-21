@@ -68,6 +68,15 @@ class ReCaLLConfig(Serializable):
     """Number of shots for ReCaLL Attacks"""
 
 @dataclass
+class InfoRMIAConfig(Serializable):
+    """
+    Config for Info-RMIA attack
+    """
+    aggregate: Optional[str] = "mean"
+    """Aggregation method. One of ['mean', 'sum', 'mink']"""
+    k: Optional[float] = 0.2
+
+@dataclass
 class EnvironmentConfig(Serializable):
     """
     Config for environment-specific parameters

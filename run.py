@@ -1,6 +1,7 @@
 """
-    Main entry point for running experiments with MIMIR
+Main entry point for running experiments with MIMIR
 """
+
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -19,8 +20,9 @@ from mimir.config import (
     EnvironmentConfig,
     NeighborhoodConfig,
     ReferenceConfig,
-    OpenAIConfig, 
-    ReCaLLConfig
+    OpenAIConfig,
+    ReCaLLConfig,
+    InfoRMIAConfig,
 )
 import mimir.data_utils as data_utils
 import mimir.plot_utils as plot_utils
@@ -78,7 +80,7 @@ def get_mia_scores(
     is_train: bool,
     n_samples: int = None,
     batch_size: int = 50,
-    **kwargs
+    **kwargs,
 ):
     # Fix randomness
     fix_seed(config.random_seed)
@@ -107,21 +109,27 @@ def get_mia_scores(
     if recall_config:
         nonmember_prefix = kwargs.get("nonmember_prefix", None)
         num_shots = recall_config.num_shots
-        avg_length = int(np.mean([len(target_model.tokenizer.encode(ex)) for ex in data["records"]]))
-        recall_dict = {"prefix":nonmember_prefix, "num_shots":num_shots, "avg_length":avg_length}
+        avg_length = int(
+            np.mean([len(target_model.tokenizer.encode(ex)) for ex in data["records"]])
+        )
+        recall_dict = {
+            "prefix": nonmember_prefix,
+            "num_shots": num_shots,
+            "avg_length": avg_length,
+        }
 
     # For each batch of data
     # TODO: Batch-size isn't really "batching" data - change later
-    for batch in tqdm(range(math.ceil(n_samples / batch_size)), desc=f"Computing criterion"):
+    for batch in tqdm(
+        range(math.ceil(n_samples / batch_size)), desc=f"Computing criterion"
+    ):
         texts = data["records"][batch * batch_size : (batch + 1) * batch_size]
 
         # For each entry in batch
         for idx in range(len(texts)):
             sample_information = defaultdict(list)
             sample = (
-                texts[idx][: config.max_substrs]
-                if config.full_doc
-                else [texts[idx]]
+                texts[idx][: config.max_substrs] if config.full_doc else [texts[idx]]
             )
 
             # This will be a list of integers if pretokenized
@@ -131,7 +139,9 @@ def get_mia_scores(
                 sample_information["detokenized"] = detokenized_sample
 
             if neigh_config and neigh_config.dump_cache:
-                neighbors_within = {n_perturbation: [] for n_perturbation in n_perturbation_list}
+                neighbors_within = {
+                    n_perturbation: [] for n_perturbation in n_perturbation_list
+                }
             # For each substring
             for i, substr in enumerate(sample):
                 # compute token probabilities for sample
@@ -157,39 +167,37 @@ def get_mia_scores(
                 # For each attack
                 for attack, attacker in attackers_dict.items():
                     # LOSS already added above, Reference handled later
-                    if attack.startswith(AllAttacks.REFERENCE_BASED) or attack == AllAttacks.LOSS:
+                    if (
+                        attack.startswith(AllAttacks.REFERENCE_BASED)
+                        or attack == AllAttacks.LOSS
+                    ):
                         continue
 
                     if attack == AllAttacks.RECALL:
                         score = attacker.attack(
                             substr,
-                            probs = s_tk_probs,
+                            probs=s_tk_probs,
                             detokenized_sample=(
-                                detokenized_sample[i]
-                                if config.pretokenized
-                                else None
+                                detokenized_sample[i] if config.pretokenized else None
                             ),
                             loss=loss,
                             all_probs=s_all_probs,
-                            recall_dict = recall_dict
+                            recall_dict=recall_dict,
                         )
                         sample_information[attack].append(score)
-
 
                     elif attack != AllAttacks.NEIGHBOR:
                         score = attacker.attack(
                             substr,
                             probs=s_tk_probs,
                             detokenized_sample=(
-                                detokenized_sample[i]
-                                if config.pretokenized
-                                else None
+                                detokenized_sample[i] if config.pretokenized else None
                             ),
                             loss=loss,
                             all_probs=s_all_probs,
                         )
                         sample_information[attack].append(score)
-                        
+
                     else:
                         # For each 'number of neighbors'
                         for n_perturbation in n_perturbation_list:
@@ -223,9 +231,9 @@ def get_mia_scores(
                                     substr_neighbors=substr_neighbors,
                                 )
 
-                                sample_information[
-                                    f"{attack}-{n_perturbation}"
-                                ].append(score)
+                                sample_information[f"{attack}-{n_perturbation}"].append(
+                                    score
+                                )
 
             if neigh_config and neigh_config.dump_cache:
                 for n_perturbation in n_perturbation_list:
@@ -269,8 +277,7 @@ def get_mia_scores(
                 for i, s in enumerate(r["sample"]):
                     if config.pretokenized:
                         s = r["detokenized"][i]
-                    score = attacker.attack(s, probs=None,
-                                                loss=r[AllAttacks.LOSS][i])
+                    score = attacker.attack(s, probs=None, loss=r[AllAttacks.LOSS][i])
                     ref_model_scores.append(score)
                 r[ref_key].extend(ref_model_scores)
 
@@ -293,11 +300,12 @@ def get_mia_scores(
 
 
 def compute_metrics_from_scores(
-        preds_member: dict,
-        preds_nonmember: dict,
-        samples_member: List,
-        samples_nonmember: List,
-        n_samples: int):
+    preds_member: dict,
+    preds_nonmember: dict,
+    samples_member: List,
+    samples_nonmember: List,
+    n_samples: int,
+):
 
     attack_keys = list(preds_member.keys())
     if attack_keys != list(preds_nonmember.keys()):
@@ -320,8 +328,7 @@ def compute_metrics_from_scores(
             for upper_bound in config.fpr_list
         }
         p, r, pr_auc = get_precision_recall_metrics(
-            preds_member=preds_member_,
-            preds_nonmember=preds_nonmember_
+            preds_member=preds_member_, preds_nonmember=preds_nonmember_
         )
 
         print(
@@ -366,7 +373,7 @@ def generate_data_processed(
     mask_model,
     raw_data_member,
     batch_size: int,
-    raw_data_non_member: List[str] = None
+    raw_data_non_member: List[str] = None,
 ):
     torch.manual_seed(42)
     np.random.seed(42)
@@ -380,7 +387,9 @@ def generate_data_processed(
     iterator = tqdm(range(num_batches), desc="Generating samples")
     for batch in iterator:
         member_text = raw_data_member[batch * batch_size : (batch + 1) * batch_size]
-        non_member_text = raw_data_non_member[batch * batch_size : (batch + 1) * batch_size]
+        non_member_text = raw_data_non_member[
+            batch * batch_size : (batch + 1) * batch_size
+        ]
 
         # TODO make same len
         for o, s in zip(non_member_text, member_text):
@@ -427,7 +436,7 @@ def generate_data(
     train: bool = True,
     presampled: str = None,
     specific_source: str = None,
-    mask_model_tokenizer = None
+    mask_model_tokenizer=None,
 ):
     data_obj = data_utils.Data(dataset, config=config, presampled=presampled)
     data = data_obj.load(
@@ -445,6 +454,7 @@ def main(config: ExperimentConfig):
     ref_config: ReferenceConfig = config.ref_config
     openai_config: OpenAIConfig = config.openai_config
     recall_config: ReCaLLConfig = config.recall_config
+    info_rmia_config: InfoRMIAConfig = config.info_rmia_config
 
     if openai_config:
         openAI_model = OpenAI_APIModel(config)
@@ -505,9 +515,10 @@ def main(config: ExperimentConfig):
 
     # reference model if we are doing the ref-based attack
     ref_models = None
-    if (
-        ref_config is not None
-        and AllAttacks.REFERENCE_BASED in config.blackbox_attacks
+    if ref_config is not None and (
+        AllAttacks.REFERENCE_BASED in config.blackbox_attacks
+        or AllAttacks.TOKEN_INFO_RMIA in config.blackbox_attacks
+        or AllAttacks.SEQ_INFO_RMIA in config.blackbox_attacks
     ):
         ref_models = {
             model: ReferenceModel(config, model) for model in ref_config.models
@@ -544,14 +555,13 @@ def main(config: ExperimentConfig):
         mask_model_tokenizer=mask_model.tokenizer if mask_model else None,
     )
 
-    #* ReCaLL Specific
+    # * ReCaLL Specific
     if AllAttacks.RECALL in config.blackbox_attacks:
         assert recall_config, "Must provide a recall_config"
         num_shots = recall_config.num_shots
         nonmember_prefix = data_nonmember[:num_shots]
     else:
         nonmember_prefix = None
-
 
     other_objs, other_nonmembers = None, None
     if config.dataset_nonmember_other_sources is not None:
@@ -579,7 +589,8 @@ def main(config: ExperimentConfig):
         n_samples, seq_lens = data_nonmember.shape
     else:
         data, seq_lens, n_samples = generate_data_processed(
-            base_model, mask_model,
+            base_model,
+            mask_model,
             data_member,
             batch_size=config.batch_size,
             raw_data_non_member=data_nonmember,
@@ -587,10 +598,7 @@ def main(config: ExperimentConfig):
 
     # If neighborhood attack is used, see if we have cache available (and load from it, if we do)
     neighbors_nonmember, neighbors_member = None, None
-    if (
-        AllAttacks.NEIGHBOR in config.blackbox_attacks
-        and neigh_config.load_from_cache
-    ):
+    if AllAttacks.NEIGHBOR in config.blackbox_attacks and neigh_config.load_from_cache:
         neighbors_nonmember, neighbors_member = {}, {}
         for n_perturbations in n_perturbation_list:
             neighbors_nonmember[n_perturbations] = data_obj_nonmem.load_neighbors(
@@ -657,6 +665,23 @@ def main(config: ExperimentConfig):
     if config.blackbox_attacks is None:
         raise ValueError("No blackbox attacks specified in config!")
 
+    # Load all reference models before using them
+    if ref_models is not None:
+        print("Loading reference models to GPU...")
+        for model_name, ref_model in ref_models.items():
+            # Explicitly set device if not already set
+            if not hasattr(ref_model, 'device') or ref_model.device is None:
+                # Use device_aux for reference models
+                ref_model.device = config.env_config.device_aux
+                
+            print(f"Loading reference model {model_name} to {ref_model.device}...")
+            ref_model.load()
+            
+            # Verify model is on correct device
+            if hasattr(ref_model, 'model') and ref_model.model is not None:
+                device = next(ref_model.model.parameters()).device
+                print(f"Reference model {model_name} is on {device}")
+
     # Collect scores for members
     member_preds, member_samples = get_mia_scores(
         data_members,
@@ -667,7 +692,7 @@ def main(config: ExperimentConfig):
         config=config,
         is_train=True,
         n_samples=n_samples,
-        nonmember_prefix = nonmember_prefix
+        nonmember_prefix=nonmember_prefix,
     )
     # Collect scores for non-members
     nonmember_preds, nonmember_samples = get_mia_scores(
@@ -679,7 +704,7 @@ def main(config: ExperimentConfig):
         config=config,
         is_train=False,
         n_samples=n_samples,
-        nonmember_prefix = nonmember_prefix
+        nonmember_prefix=nonmember_prefix,
     )
     blackbox_outputs = compute_metrics_from_scores(
         member_preds,
@@ -708,9 +733,7 @@ def main(config: ExperimentConfig):
             )
 
             for attack in blackbox_outputs.keys():
-                member_scores = np.array(
-                    member_preds[attack]["predictions"]["member"]
-                )
+                member_scores = np.array(member_preds[attack]["predictions"]["member"])
                 thresholds = blackbox_outputs[attack]["metrics"]["thresholds"]
                 nonmember_scores = np.array(other_nonmem_preds[attack])
                 auc = get_auc_from_thresholds(
@@ -722,7 +745,7 @@ def main(config: ExperimentConfig):
         exit(0)
 
     # Dump main config into SAVE_FOLDER
-    config.save_json(os.path.join(SAVE_FOLDER, 'config.json'), indent=4)
+    config.save_json(os.path.join(SAVE_FOLDER, "config.json"), indent=4)
 
     for attack, output in blackbox_outputs.items():
         outputs.append(output)

@@ -1,21 +1,24 @@
 {
-    "experiment_name": "recall",
+    "experiment_name": "compare_info_rmia_single_gpu",
     "base_model": "EleutherAI/pythia-1.4b",
-    "dataset_member": "the_pile",
-    "dataset_nonmember": "the_pile",
+    "dataset_member": "english",
+    "dataset_nonmember": "german",
     "min_words": 100,
     "max_words": 200,
     "max_tokens": 512,
     "max_data": 100000,
-    "output_name": "unified_mia",
+    "output_name": "compare_info_rmia",
     "specific_source": "Github_ngram_13_<0.8_truncated",
     "n_samples": 1000,
-    "blackbox_attacks": ["loss", "ref", "zlib", "min_k", "min_k++", "recall", "info_rmia_token", "info_rmia_seq"],
-    "env_config": {
-        "results": "results",
-        "device": "cuda:0",
-        "device_aux": "cuda:1"
-    },
+    "blackbox_attacks": [
+        "loss",
+        "ref",
+        "zlib",
+        "min_k",
+        "min_k++",
+        "recall",
+        "info_rmia_token"
+    ],
     "ref_config": {
         "models": [
             "EleutherAI/pythia-160m"
@@ -23,6 +26,11 @@
     },
     "recall_config":{
         "num_shots": 1
+    },
+    "env_config": {
+        "results": "results_new",
+        "device": "cuda:0",
+        "device_aux": "cuda:0"
     },
     "dump_cache": true,
     "load_from_cache": false,

@@ -1,6 +1,7 @@
 """
     Model definitions, with basic helper functions. Supports any model as long as it supports the functions specified in Model.
 """
+import os
 import torch
 import torch.nn as nn
 import openai
@@ -167,29 +168,42 @@ class Model(nn.Module):
         """
         if self.device is None or self.name is None:
             raise ValueError("Please set self.device and self.name in child class")
-
+        
+        # Get the revision if it exists in model_kwargs
+        revision = model_kwargs.get('revision', None)
+        
+        # Create specific cache directory for step-specific revisions
+        cache_dir = self.cache_dir
+        if revision and revision.startswith('step'):
+            # For Pythia checkpoints, use a more specific cache directory
+            model_cache_name = self.name.replace('/', '_')
+            cache_dir = os.path.join(self.cache_dir, f"{model_cache_name}/{revision}")
+            print(f"Using step-specific cache directory: {cache_dir}")
+        
         if self.config.openai_config is None:
             print(f'Loading BASE model {self.name}...')
-            device_map = self.device_map # if self.device_map else 'cpu'
+            device_map = self.device_map
+            
+            # Same model loading logic, but with updated cache_dir
             if "silo" in self.name or "balanced" in self.name:
                 from utils.transformers.model import OpenLMforCausalLM
                 model = OpenLMforCausalLM.from_pretrained(
-                    self.name, **model_kwargs, device_map=self.device, cache_dir=self.cache_dir)
+                    self.name, **model_kwargs, device_map=self.device, cache_dir=cache_dir)
                 # Extract the model from the model wrapper so we dont need to call model.model
             elif "llama" in self.name or "alpaca" in self.name:
                 # TODO: This should be smth specified in config in case user has
                 # llama is too big, gotta use device map
-                model = transformers.AutoModelForCausalLM.from_pretrained(self.name, **model_kwargs, device_map="balanced_low_0", cache_dir=self.cache_dir)
+                model = transformers.AutoModelForCausalLM.from_pretrained(self.name, **model_kwargs, device_map="balanced_low_0", cache_dir=cache_dir)
                 self.device = 'cuda:1'
             elif "stablelm" in self.name.lower():  # models requiring custom code
                 model = transformers.AutoModelForCausalLM.from_pretrained(
-                    self.name, **model_kwargs, trust_remote_code=True, device_map=device_map, cache_dir=self.cache_dir)
+                    self.name, **model_kwargs, trust_remote_code=True, device_map=device_map, cache_dir=cache_dir)
             elif "olmo" in self.name.lower():
                 model = transformers.AutoModelForCausalLM.from_pretrained(
-                    self.name, **model_kwargs, trust_remote_code=True, cache_dir=self.cache_dir)
+                    self.name, **model_kwargs, trust_remote_code=True, cache_dir=cache_dir)
             else:
                 model = transformers.AutoModelForCausalLM.from_pretrained(
-                    self.name, **model_kwargs, device_map=device_map, cache_dir=self.cache_dir)
+                    self.name, **model_kwargs, device_map=device_map, cache_dir=cache_dir)
         else:
             model = None
 
@@ -202,20 +216,25 @@ class Model(nn.Module):
             self.pad_token = self.tokenizer.eos_token_id
         if "silo" in self.name or "balanced" in self.name:
             tokenizer = transformers.GPTNeoXTokenizerFast.from_pretrained(
-                "EleutherAI/gpt-neox-20b", **optional_tok_kwargs, cache_dir=self.cache_dir)
+                "EleutherAI/gpt-neox-20b", **optional_tok_kwargs, cache_dir=cache_dir)
         elif "datablations" in self.name:
             tokenizer = transformers.AutoTokenizer.from_pretrained(
-                "gpt2", **optional_tok_kwargs, cache_dir=self.cache_dir)
+                "gpt2", **optional_tok_kwargs, cache_dir=cache_dir)
         elif "llama" in self.name or "alpaca" in self.name:
             tokenizer = transformers.LlamaTokenizer.from_pretrained(
-                self.name, **optional_tok_kwargs, cache_dir=self.cache_dir)
+                self.name, revision=revision, **optional_tok_kwargs, cache_dir=cache_dir)
         elif "pubmedgpt" in self.name:
             tokenizer = transformers.AutoTokenizer.from_pretrained(
-                "stanford-crfm/BioMedLM", **optional_tok_kwargs, cache_dir=self.cache_dir)
+                "stanford-crfm/BioMedLM", **optional_tok_kwargs, cache_dir=cache_dir)
         else:
+            # Pass revision and cache_dir to ensure tokenizer matches the model checkpoint
             tokenizer = transformers.AutoTokenizer.from_pretrained(
-                self.name, **optional_tok_kwargs, cache_dir=self.cache_dir,
-                trust_remote_code=True if "olmo" in self.name.lower() else False)
+                self.name,
+                revision=revision,
+                **optional_tok_kwargs,
+                cache_dir=cache_dir,
+                trust_remote_code=True if "olmo" in self.name.lower() else False,
+            )
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
         return model, tokenizer
@@ -273,6 +292,36 @@ class ReferenceModel(Model):
         """
         if "llama" not in self.name and "alpaca" not in self.name:
             super().unload()
+
+    def get_probabilities(self,
+                          text: str,
+                          tokens: np.ndarray = None,
+                          no_grads: bool = True,
+                          return_all_probs: bool = False):
+        """Delegate to base implementation after ensuring device alignment.
+
+        This standardizes probability computation across LanguageModel and ReferenceModel,
+        avoids duplicated logic, and respects the sliding-window/stride behavior.
+        """
+        # Ensure the model is loaded
+        if not hasattr(self, 'model') or self.model is None:
+            self.load()
+
+        # Ensure self.device matches the actual model device to avoid mismatches
+        try:
+            model_device = next(self.model.parameters()).device
+            if str(self.device) != str(model_device):
+                self.device = model_device
+        except Exception:
+            pass
+
+        # Use standardized implementation from the base class
+        return super().get_probabilities(
+            text,
+            tokens=tokens,
+            no_grads=no_grads,
+            return_all_probs=return_all_probs,
+        )
 
 
 class QuantileReferenceModel(Model):

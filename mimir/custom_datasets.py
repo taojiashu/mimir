@@ -80,7 +80,15 @@ def load_cached(cache_dir,
         # If got here, matching source was not found
         raise ValueError(f"Requested source {filename} not found in HuggingFace data.")
     else:
+        if filename.startswith("the_pile"):
+            # Remove "the_pile_" prefix
+            filename = filename[len("the_pile_"):]
+        if filename.endswith("truncated"):
+            # Remove "_truncated" suffix
+            filename = filename[:-len("_truncated")]
         file_path = os.path.join(cache_dir, f"cache_{min_length}_{max_length}_{n_samples}_{max_tokens}", data_split, filename + ".jsonl")
+        # Replace < with _
+        file_path = file_path.replace("<", "_")
         if not os.path.exists(file_path):
             raise ValueError(f"Requested cache file {file_path} does not exist")
         data = load_data(file_path)

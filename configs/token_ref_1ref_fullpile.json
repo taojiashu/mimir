@@ -1,30 +1,30 @@
 {
-    "experiment_name": "npythia-160m-deduped_other_source_experiment_arxiv",
+    "experiment_name": "token_ref_1ref",
     "base_model": "EleutherAI/pythia-160m-deduped",
     "dataset_member": "the_pile",
     "dataset_nonmember": "the_pile",
-    "dataset_nonmember_other_sources": ["arxiv"],
     "min_words": 100,
     "max_words": 200,
     "max_tokens": 512,
     "max_data": 100000,
     "output_name": "unified_mia",
-    "specific_source": "arxiv_2021_01",
-    "n_samples": 1000,
-    "blackbox_attacks": ["loss", "ref", "min_k", "zlib", "min_k++", "recall", "dc_pdd", "info_rmia_token", "info_rmia_seq"],
+    "specific_source": "full_pile",
+    "n_samples": 10000,
+    "blackbox_attacks": ["loss", "ref", "min_k", "zlib", "min_k++", "recall", "dc_pdd", "info_rmia_token"],
     "ref_config": {
         "models": [
-            "stabilityai/stablelm-base-alpha-3b-v2"
+            "EleutherAI/pythia-160m:step1"
         ]
     },
-    "recall_config":{
+    "recall_config": {
         "num_shots": 1
     },
     "env_config": {
         "results": "results",
-        "device": "cuda:1",
+        "device": "cuda:0",
         "device_aux": "cuda:0"
     },
     "dump_cache": false,
+    "load_from_cache": false,
     "load_from_hf": true
 }

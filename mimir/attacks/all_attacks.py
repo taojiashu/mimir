@@ -17,6 +17,8 @@ class AllAttacks(str, Enum):
     GRADNORM = "gradnorm"
     RECALL = "recall"
     DC_PDD = "dc_pdd" 
+    TOKEN_INFO_RMIA = "info_rmia_token"
+    SEQ_INFO_RMIA = "info_rmia_seq"
     # QUANTILE = "quantile" # Uncomment when tested implementation is available
 
 

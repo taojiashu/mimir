@@ -125,7 +125,8 @@ class Data:
                     cache_dir=self.cache_dir,
                 )[self.key]
             elif self.name in custom_datasets.DATASETS:
-                data = custom_datasets.load(self.name)
+                # custom_datasets.load requires cache_dir as second arg
+                data = custom_datasets.load(self.name, cache_dir=self.cache_dir)
             elif self.name == "the_pile":
                 min_load = max(10000, self.config.max_data)
                 data = datasets.load_dataset(

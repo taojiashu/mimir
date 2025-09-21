@@ -1,6 +1,6 @@
 {
-    "experiment_name": "neo125_github_experiment",
-    "base_model": "EleutherAI/gpt-neo-125m",
+    "experiment_name": "recall_debug",
+    "base_model": "EleutherAI/pythia-1.4b",
     "dataset_member": "the_pile",
     "dataset_nonmember": "the_pile",
     "min_words": 100,
@@ -10,20 +10,21 @@
     "output_name": "unified_mia",
     "specific_source": "Github_ngram_13_<0.8_truncated",
     "n_samples": 1000,
-    "blackbox_attacks": ["loss", "ref", "min_k", "zlib", "min_k++", "recall", "dc_pdd", "info_rmia_token", "info_rmia_seq"],
+    "blackbox_attacks": ["recall"],
+    "env_config": {
+        "results": "results",
+        "device": "cuda:0",
+        "device_aux": "cuda:1"
+    },
     "ref_config": {
         "models": [
-            "stabilityai/stablelm-base-alpha-3b-v2"
+            "EleutherAI/pythia-160m"
         ]
     },
     "recall_config":{
         "num_shots": 1
     },
-    "env_config": {
-        "results": "results",
-        "device": "cuda:1",
-        "device_aux": "cuda:0"
-    },
     "dump_cache": false,
+    "load_from_cache": false,
     "load_from_hf": true
 }
