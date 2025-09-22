@@ -1,6 +1,6 @@
 {
     "experiment_name": "token_ref_1ref",
-    "base_model": "EleutherAI/pythia-160m-deduped",
+    "base_model": "EleutherAI/pythia-1.4b",
     "dataset_member": "the_pile",
     "dataset_nonmember": "the_pile",
     "min_words": 100,
@@ -8,23 +8,23 @@
     "max_tokens": 512,
     "max_data": 100000,
     "output_name": "unified_mia",
-    "specific_source": "full_pile",
-    "n_samples": 10000,
-    "blackbox_attacks": ["loss", "ref", "min_k", "zlib", "min_k++", "recall", "dc_pdd", "info_rmia_token"],
+    "specific_source": "Github_ngram_13_<0.8_truncated",
+    "n_samples": 1000,
+    "blackbox_attacks": ["info_rmia_token"],
     "ref_config": {
         "models": [
-            "EleutherAI/pythia-160m:step1"
+            "EleutherAI/pythia-2.8b:step1"
         ]
     },
     "recall_config": {
         "num_shots": 1
     },
     "env_config": {
-        "results": "results",
+        "results": "results/sameref",
         "device": "cuda:0",
-        "device_aux": "cuda:0"
+        "device_aux": "cuda:1"
     },
     "dump_cache": false,
-    "load_from_cache": false,
-    "load_from_hf": true
+    "load_from_cache": true,
+    "load_from_hf": false
 }
