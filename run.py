@@ -288,11 +288,29 @@ def get_mia_scores(
 
     # Perform reference-based attacks
     if ref_models is not None:
+        # Debug: log target model device before starting ref-based scoring
+        try:
+            _t_device = next(target_model.model.parameters()).device
+        except Exception:
+            _t_device = getattr(target_model, "device", "unknown")
+        print(
+            f"[DEBUG] Target model device before Ref scoring ({'train' if is_train else 'non-train'}): {_t_device}"
+        )
+
         for name, ref_model in ref_models.items():
             ref_key = f"{AllAttacks.REFERENCE_BASED}-{name.split('/')[-1]}"
             attacker = attackers_dict.get(ref_key, None)
             if attacker is None:
                 continue
+
+            # Debug: log reference model device before computing Ref scores
+            try:
+                _r_device = next(ref_model.model.parameters()).device
+            except Exception:
+                _r_device = getattr(ref_model, "device", "unknown")
+            print(
+                f"[DEBUG] Reference model {name} device before Ref scoring: {_r_device}"
+            )
 
             # Update collected scores for each sample with ref-based attack scores
             for r in tqdm(results, desc="Ref scores"):
@@ -717,6 +735,22 @@ def main(config: ExperimentConfig):
         n_samples=n_samples,
         nonmember_prefix=nonmember_prefix,
     )
+    # Ensure reference models are (re)loaded onto GPU before the non-member pass.
+    # Some attackers may unload models after a pass to save memory; reloading here
+    # avoids falling back to CPU on the second pass which can be significantly slower.
+    if ref_models is not None:
+        print("Reloading reference models to GPU for non-member scoring...")
+        for model_name, ref_model in ref_models.items():
+            print(f"Reloading reference model {model_name}...")
+            ref_model.load()
+            # Verify device placement
+            if hasattr(ref_model, "model") and ref_model.model is not None:
+                try:
+                    device = next(ref_model.model.parameters()).device
+                    print(f"Reference model {model_name} is on {device}")
+                except StopIteration:
+                    # Model without parameters (edge case)
+                    pass
     # Collect scores for non-members
     nonmember_preds, nonmember_samples = get_mia_scores(
         data_nonmembers,
