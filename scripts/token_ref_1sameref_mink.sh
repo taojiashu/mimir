@@ -16,7 +16,7 @@ if [[ -d "venv" ]]; then
   source venv/bin/activate
 fi
 
-CONFIG="configs/token_ref_1ref_mink.json"
+CONFIG="configs/token_ref_1sameref_mink.json"
 NGRAM=13
 
 # Models and subsets to iterate
@@ -38,14 +38,14 @@ SUBSETS=(
 )
 
 # Optional: create a simple log directory
-LOG_DIR="logs/token_ref_1ref_mink"
+LOG_DIR="logs/token_ref_1sameref_mink"
 mkdir -p "${LOG_DIR}"
 
 for model in "${MODELS[@]}"; do
   BASE_MODEL="EleutherAI/${model}-deduped"
   for subset in "${SUBSETS[@]}"; do
     SPECIFIC_SOURCE="${subset}_ngram_${NGRAM}_0.8_truncated"
-    echo "[token_ref_1ref_mink] Running base_model=${BASE_MODEL} subset=${subset}"
+    echo "[token_ref_1sameref_mink] Running base_model=${BASE_MODEL} subset=${subset}"
     # Each run writes a short log
     SAFE_MODEL="${model//\//_}"
     SAFE_SUBSET="${subset//\//_}"

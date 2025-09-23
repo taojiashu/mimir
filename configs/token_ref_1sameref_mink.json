@@ -1,5 +1,5 @@
 {
-    "experiment_name": "debug_shape_mismatch",
+    "experiment_name": "info_rmia_sameref_mink",
     "base_model": "EleutherAI/pythia-160m-deduped",
     "dataset_member": "the_pile",
     "dataset_nonmember": "the_pile",
@@ -13,7 +13,7 @@
     "blackbox_attacks": ["info_rmia_token"],
     "ref_config": {
         "models": [
-            "EleutherAI/pythia-160m:step1"
+            "EleutherAI/pythia-1.4b:step1"
         ]
     },
     "info_rmia_config": {
@@ -21,7 +21,7 @@
     },
     "env_config": {
         "results": "results",
-        "device": "cuda:1",
+        "device": "cuda:0",
         "device_aux": "cuda:1"
     },
     "dump_cache": false,

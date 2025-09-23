@@ -102,6 +102,18 @@ class Model(nn.Module):
 
             target_token_log_prob = []
             all_token_log_prob = []
+
+            # Determine tokenizer vocabulary size; we'll clip extra model logits to this size when returning full distributions
+            tok_vocab_size = None
+            try:
+                tok_vocab_size = len(self.tokenizer.get_vocab())
+            except Exception:
+                # Fallbacks if get_vocab isn't available
+                if hasattr(self.tokenizer, 'vocab_size'):
+                    tok_vocab_size = self.tokenizer.vocab_size
+                elif hasattr(self.model, 'config') and hasattr(self.model.config, 'vocab_size'):
+                    # As a last resort use model config
+                    tok_vocab_size = self.model.config.vocab_size
             for i in range(0, labels.size(1), self.stride):
                 begin_loc = max(i + self.stride - self.max_length, 0)
                 end_loc = min(i + self.stride, labels.size(1))
@@ -115,6 +127,11 @@ class Model(nn.Module):
                     logits = logits.cpu()
                 shift_logits = logits[..., :-1, :].contiguous()
                 log_probabilities = torch.nn.functional.log_softmax(shift_logits, dim=-1)
+                # Prepare a potentially clipped view for returning full distributions only when requested
+                if return_all_probs and tok_vocab_size is not None and log_probabilities.size(-1) > tok_vocab_size:
+                    log_probabilities_view = log_probabilities[..., :tok_vocab_size]
+                else:
+                    log_probabilities_view = log_probabilities
                 shift_labels = target_ids[..., 1:]
                 if no_grads:
                     shift_labels = shift_labels.cpu()
@@ -130,7 +147,8 @@ class Model(nn.Module):
                         if no_grads:
                             log_probability = log_probability.item()
                         target_token_log_prob.append(log_probability)
-                        all_token_log_prob.append(log_probabilities[0, i])
+                        # Append the (possibly clipped) full distribution for this position
+                        all_token_log_prob.append(log_probabilities_view[0, i])
             
             # Should be equal to # of tokens - 1 to account for shift
             assert len(target_token_log_prob) == labels.size(1) - 1
@@ -362,6 +380,8 @@ class LanguageModel(Model):
             base_model_kwargs.update(dict(torch_dtype=torch.float16))
         if 'gpt-j' in self.name:
             base_model_kwargs.update(dict(revision='float16'))
+        # if any(size in self.name.lower() for size in ['6.9b', '12b']):
+        #     base_model_kwargs.update(dict(device_map="auto"))
         self.model, self.tokenizer = self.load_base_model_and_tokenizer(
             model_kwargs=base_model_kwargs)
         self.load_model_properties()
