@@ -22,9 +22,9 @@ NGRAM=13
 # Models and subsets to iterate
 MODELS=(
   "pythia-160m"
-  "pythia-1.4b"
-  "pythia-2.8b"
-  "pythia-6.9b"
+  # "pythia-1.4b"
+  # "pythia-2.8b"
+  # "pythia-6.9b"
 )
 
 SUBSETS=(
